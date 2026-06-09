@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    {"id": "container_047_r3", "agent_id": "container_047", "round": 3, "is_failure": true},
+    {"id": "constraint_parser_r1", "agent_id": "constraint_parser", "round": 1, "is_failure": false},
+    {"id": "container_112_r2", "agent_id": "container_112", "round": 2, "is_failure": false},
+    {"id": "container_183_r1", "agent_id": "container_183", "round": 1, "is_failure": false}
+  ],
+  "edges": [
+    {"source": "constraint_parser_r1", "target": "container_047_r3", "label": "dropped temperature_constraint"},
+    {"source": "container_112_r2", "target": "container_047_r3", "label": "competed for refrigerated slot"}
+  ]
+}

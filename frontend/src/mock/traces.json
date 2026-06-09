@@ -1,0 +1,50 @@
+[
+  {
+    "trace_id": "tr_0x4f3a",
+    "agent_id": "container_047",
+    "round": 3,
+    "inputs": { "temperature_constraint": null, "urgency": "HIGH" },
+    "chain_of_thought": "Temperature constraint is null, treating as standard cargo.",
+    "output": { "action": "BID", "slot": "crane_5_t14", "bid_value": 0.72 }
+  },
+  {
+    "trace_id": "tr_0x1a2b",
+    "agent_id": "constraint_parser",
+    "round": 1,
+    "inputs": { "temperature_constraint": 4.0, "cargo_type": "cold_chain" },
+    "chain_of_thought": "Parsing container constraints.",
+    "output": { "action": "PARSE", "temperature_constraint": null, "dropped": true }
+  },
+  {
+    "trace_id": "tr_0x3c4d",
+    "agent_id": "container_112",
+    "round": 2,
+    "inputs": { "temperature_constraint": 3.5, "urgency": "NORMAL" },
+    "chain_of_thought": "Cold chain cargo, selected refrigerated slot.",
+    "output": { "action": "BID", "slot": "crane_0_t10", "bid_value": 0.85 }
+  },
+  {
+    "trace_id": "tr_0x5e6f",
+    "agent_id": "container_183",
+    "round": 1,
+    "inputs": { "temperature_constraint": null, "urgency": "LOW" },
+    "chain_of_thought": "Standard cargo, selected cheapest available slot.",
+    "output": { "action": "BID", "slot": "crane_3_t8", "bid_value": 0.45 }
+  },
+  {
+    "trace_id": "tr_0x7a8b",
+    "agent_id": "container_201",
+    "round": 4,
+    "inputs": { "temperature_constraint": null, "urgency": "CRITICAL" },
+    "chain_of_thought": "CRITICAL urgency, bidding maximum on first available slot.",
+    "output": { "action": "BID", "slot": "crane_2_t12", "bid_value": 0.99 }
+  },
+  {
+    "trace_id": "tr_0x9c0d",
+    "agent_id": "container_099",
+    "round": 2,
+    "inputs": { "temperature_constraint": null, "urgency": "HIGH" },
+    "chain_of_thought": "Standard cargo, selected cheapest available slot.",
+    "output": { "action": "BID", "slot": "crane_7_t6", "bid_value": 0.61 }
+  }
+]
