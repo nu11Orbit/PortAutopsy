@@ -1,0 +1,14 @@
+{
+  "failure": "Cold chain violation — container_047 spoiled",
+  "root_cause_agent": "container_047",
+  "root_cause_decision": "Bid on non-refrigerated slot at round 3",
+  "causal_chain": [
+    "constraint_parser dropped temperature_constraint (null)",
+    "container_047 evaluated slot without temp constraint",
+    "crane_5_t14 allocated (non-refrigerated)",
+    "cold chain violation detected at t+16"
+  ],
+  "counterfactual": "If container_047 had received temperature_constraint=4°C, it would have bid on crane_2_t14 — no violation",
+  "suggested_fix": "Add null-check in ConstraintParser.parse() — raise ValueError if temperature_constraint is None for cold-chain cargo",
+  "confidence": 0.94
+}

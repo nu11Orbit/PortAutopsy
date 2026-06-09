@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
-dist/
 build/
 .eggs/
 *.egg
@@ -14,10 +13,10 @@ build/
 venv/
 env/
 
-# Data files (generated at runtime)
+# Data files (generated at runtime — root level only)
 traces.jsonl
 traces.db
-autopsy_report.json
+/autopsy_report.json
 saved_state.json
 
 # IDE
@@ -30,9 +29,10 @@ saved_state.json
 .DS_Store
 Thumbs.db
 
-# Node (dashboard)
+# Node
 node_modules/
-packages/dashboard/build/
+frontend/dist/
+frontend/dist-ssr/
 
 # Docs
 portautopsy-build-plan.md
