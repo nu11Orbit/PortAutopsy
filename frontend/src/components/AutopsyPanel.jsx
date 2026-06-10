@@ -4,104 +4,122 @@ import CausalGraph from './CausalGraph';
 import mockReport from '../mock/autopsy_report.json';
 
 export default function AutopsyPanel({ onReportLoaded }) {
-  const [report, setReport] = useState(null);
+  const [report, setReport]   = useState(null);
   const [loading, setLoading] = useState(false);
 
   const runAutopsy = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/autopsy-report');
+      const res  = await fetch('http://localhost:8000/autopsy-report');
       const data = await res.json();
       setReport(data);
       setLoading(false);
       onReportLoaded?.();
     } catch {
-      // Fall back to mock for demo
       setTimeout(() => {
         setReport(mockReport);
         setLoading(false);
         onReportLoaded?.();
-      }, 800);
+      }, 900);
     }
   };
 
   return (
-    <div style={{ padding: 16, border: '0.5px solid #e2e8f0', borderRadius: 8 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 12,
-        }}
-      >
-        <h2 style={{ fontSize: 14, fontWeight: 600 }}>Autopsy</h2>
+    <div>
+      {/* Header */}
+      <div className="section-header">
+        <span className="section-title">Diagnostics</span>
         <button
+          className="btn btn-primary"
+          style={{ marginLeft: 'auto', padding: '7px 16px', fontSize: 12 }}
           onClick={runAutopsy}
           disabled={loading}
-          style={{
-            fontSize: 12,
-            padding: '6px 14px',
-            borderRadius: 6,
-            background: loading ? '#e2e8f0' : '#3b82f6',
-            color: loading ? '#94a3b8' : 'white',
-            border: 'none',
-            cursor: loading ? 'default' : 'pointer',
-          }}
         >
-          {loading ? 'Analysing...' : 'Run Autopsy'}
+          {loading ? <>⟳ Analyzing…</> : <>▶ Run Autopsy</>}
         </button>
       </div>
 
+      {/* Empty state */}
       {!report && !loading && (
-        <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: 24 }}>
-          Inject a failure then run autopsy
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 10, padding: '36px 20px',
+          border: '1px dashed rgba(255,255,255,0.08)',
+          borderRadius: 'var(--r)',
+          background: 'rgba(255,255,255,0.02)',
+          backdropFilter: 'blur(6px)',
+        }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(45,212,191,0.3)" strokeWidth="1.5" strokeLinecap="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+            <path d="M11 8v6M8 11h6"/>
+          </svg>
+          <div style={{ fontSize: 13, color: 'var(--t2)', fontWeight: 500 }}>No Active Diagnosis</div>
+          <div style={{ fontSize: 12, color: 'var(--t3)', textAlign: 'center', lineHeight: 1.5 }}>
+            Click Run Autopsy to trace a fault<br/>scenario through the causal chain.
+          </div>
         </div>
       )}
 
+      {/* Loading skeletons */}
       {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
-          <div className="skeleton" style={{ height: 120 }} />
-          <div className="skeleton" style={{ height: 48 }} />
-          <div className="skeleton" style={{ height: 48 }} />
-          <div className="skeleton" style={{ height: 16, width: '40%' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="skeleton" style={{ height: 150 }} />
+          <div className="skeleton" style={{ height: 60 }} />
+          <div className="skeleton" style={{ height: 60 }} />
+          <div className="skeleton" style={{ height: 6, width: '100%' }} />
         </div>
       )}
 
+      {/* Report */}
       {report && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Render the causal chain graph */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
           <CausalGraph />
-          {/* Report card */}
-          <div
-            style={{
-              padding: 12,
-              background: '#fef2f2',
-              borderRadius: 6,
-              border: '0.5px solid #fecaca',
-            }}
-          >
-            <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 600 }}>Root cause</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>
-              <strong>{report.root_cause_agent}</strong> — {report.root_cause_decision}
+
+          <div className="block-red">
+            <div className="info-label" style={{ color: 'var(--rose)' }}>Fault Origin</div>
+            <div style={{ fontSize: 13, color: 'var(--t1)', lineHeight: 1.6, marginTop: 5 }}>
+              <span style={{
+                display: 'inline-block',
+                background: 'rgba(251,113,133,0.08)', color: 'var(--rose)',
+                padding: '2px 8px', borderRadius: 4, marginRight: 8,
+                fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 600,
+              }}>
+                {report.root_cause_agent}
+              </span>
+              {report.root_cause_decision}
             </div>
           </div>
-          <div
-            style={{
-              padding: 12,
-              background: '#f0fdf4',
-              borderRadius: 6,
-              border: '0.5px solid #bbf7d0',
-            }}
-          >
-            <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600 }}>Suggested fix</div>
-            <code style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+
+          <div className="block-green">
+            <div className="info-label" style={{ color: 'var(--teal)' }}>Suggested Fix</div>
+            <code style={{
+              color: 'var(--t1)', display: 'block', marginTop: 5,
+              whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              lineHeight: 1.65, fontSize: 12,
+            }}>
               {report.suggested_fix}
             </code>
           </div>
-          <div style={{ fontSize: 11, color: '#64748b' }}>
-            Confidence: <strong>{Math.round(report.confidence * 100)}%</strong>
+
+          {/* Confidence */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--t3)', whiteSpace: 'nowrap' }}>Confidence</span>
+            <div className="conf-track">
+              <div className="conf-fill" style={{ width: `${Math.round(report.confidence * 100)}%` }} />
+            </div>
+            <span style={{
+              fontSize: 13, fontWeight: 600,
+              color: '#2DD4BF',
+              whiteSpace: 'nowrap',
+              fontFamily: 'var(--mono)',
+            }}>
+              {Math.round(report.confidence * 100)}%
+            </span>
           </div>
+
           <CounterfactualDiff report={report} />
         </div>
       )}
