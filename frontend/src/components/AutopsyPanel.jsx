@@ -3,7 +3,7 @@ import CounterfactualDiff from './CounterfactualDiff';
 import CausalGraph from './CausalGraph';
 import mockReport from '../mock/autopsy_report.json';
 
-export default function AutopsyPanel() {
+export default function AutopsyPanel({ onReportLoaded }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -14,11 +14,13 @@ export default function AutopsyPanel() {
       const data = await res.json();
       setReport(data);
       setLoading(false);
+      onReportLoaded?.();
     } catch {
       // Fall back to mock for demo
       setTimeout(() => {
         setReport(mockReport);
         setLoading(false);
+        onReportLoaded?.();
       }, 800);
     }
   };
