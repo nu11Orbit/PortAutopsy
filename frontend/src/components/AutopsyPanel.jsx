@@ -58,8 +58,11 @@ export default function AutopsyPanel() {
       )}
 
       {loading && (
-        <div style={{ fontSize: 12, color: '#3b82f6', textAlign: 'center', padding: 24 }}>
-          Tracing causal chain...
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+          <div className="skeleton" style={{ height: 120 }} />
+          <div className="skeleton" style={{ height: 48 }} />
+          <div className="skeleton" style={{ height: 48 }} />
+          <div className="skeleton" style={{ height: 16, width: '40%' }} />
         </div>
       )}
 
