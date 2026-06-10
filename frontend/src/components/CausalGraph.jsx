@@ -8,123 +8,77 @@ export default function CausalGraph({ apiUrl = 'http://localhost:8000/causal-gra
   const [selectedNode, setSelectedNode] = useState(null);
 
   useEffect(() => {
-    fetch(apiUrl)
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.nodes) setData(d);
-      })
-      .catch(() => setData(mockGraph)); // Fallback to mock when A3's server is down
+    fetch(apiUrl).then(r => r.json()).then(d => { if (d?.nodes?.length) setData(d); }).catch(() => {});
   }, [apiUrl]);
 
   useEffect(() => {
     if (!ref.current) return;
+    ref.current.innerHTML = '';
     const el = ref.current;
-    el.innerHTML = '';
-    const W = 500, H = 300;
+    const W = el.clientWidth || 440, H = 160;
+
     const svg = d3.select(el).append('svg').attr('width', '100%').attr('height', H);
+    const defs = svg.append('defs');
 
-    const nodeColor = (d) => (d.is_failure ? '#ef4444' : '#60a5fa');
+    ['fail', 'ok'].forEach(type => {
+      defs.append('marker')
+        .attr('id', `arr-${type}`).attr('viewBox', '0 0 8 8').attr('refX', 24).attr('refY', 4)
+        .attr('markerWidth', 4).attr('markerHeight', 4).attr('orient', 'auto')
+        .append('path').attr('d', 'M0,0L8,4L0,8').attr('fill', 'none')
+        .attr('stroke', type === 'fail' ? '#FB7185' : 'rgba(45,212,191,0.5)').attr('stroke-width', 1.5);
+    });
 
-    // Deep-copy nodes/edges so D3 can mutate them freely
-    const nodes = data.nodes.map((n) => ({ ...n }));
-    const edges = data.edges.map((e) => ({ ...e }));
+    const nodes = (data.nodes || []).map(n => ({ ...n }));
+    const edges = (data.edges || data.links || []).map(e => ({ ...e }));
 
-    const sim = d3
-      .forceSimulation(nodes)
-      .force('link', d3.forceLink(edges).id((d) => d.id).distance(140))
-      .force('charge', d3.forceManyBody().strength(-300))
-      .force('center', d3.forceCenter(W / 2, H / 2));
+    const sim = d3.forceSimulation(nodes)
+      .force('link',   d3.forceLink(edges).id(d => d.id).distance(120))
+      .force('charge', d3.forceManyBody().strength(-320))
+      .force('center', d3.forceCenter(W / 2, H / 2))
+      .force('collide', d3.forceCollide(30));
 
-    svg
-      .append('defs')
-      .append('marker')
-      .attr('id', 'arrow')
-      .attr('viewBox', '0 0 10 10')
-      .attr('refX', 18)
-      .attr('refY', 5)
-      .attr('markerWidth', 6)
-      .attr('markerHeight', 6)
-      .attr('orient', 'auto-start-reverse')
-      .append('path')
-      .attr('d', 'M2 1L8 5L2 9')
-      .attr('fill', 'none')
-      .attr('stroke', '#94a3b8')
-      .attr('stroke-width', 1.5);
+    const edgeG = svg.append('g');
+    const link = edgeG.selectAll('line').data(edges).join('line')
+      .attr('stroke-width', 1.5)
+      .attr('stroke', d => {
+        const src = nodes.find(n => n.id === (d.source?.id || d.source));
+        return src?.is_failure ? 'rgba(251,113,133,0.5)' : 'rgba(45,212,191,0.25)';
+      })
+      .attr('stroke-dasharray', d => d.effect_type === 'sequential' ? '4 4' : null)
+      .attr('marker-end', d => {
+        const src = nodes.find(n => n.id === (d.source?.id || d.source));
+        return src?.is_failure ? 'url(#arr-fail)' : 'url(#arr-ok)';
+      });
 
-    const linkGroup = svg
-      .append('g')
-      .selectAll('g')
-      .data(edges)
-      .join('g');
-
-    const link = linkGroup
-      .append('line')
-      .attr('stroke', '#94a3b8')
-      .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#arrow)');
-
-    const edgeLabel = linkGroup
-      .append('text')
-      .text((d) => d.label || '')
-      .attr('font-size', 10)
-      .attr('fill', '#64748b')
-      .attr('text-anchor', 'middle');
-
-    const node = svg
-      .append('g')
-      .selectAll('g')
-      .data(nodes)
-      .join('g')
+    const nodeG = svg.append('g');
+    const node = nodeG.selectAll('g').data(nodes).join('g')
       .attr('cursor', 'pointer')
-      .on('click', (e, d) => setSelectedNode(d))
-      .call(
-        d3
-          .drag()
-          .on('start', (e, d) => {
-            if (!e.active) sim.alphaTarget(0.3).restart();
-            d.fx = d.x;
-            d.fy = d.y;
-          })
-          .on('drag', (e, d) => {
-            d.fx = e.x;
-            d.fy = e.y;
-          })
-          .on('end', (e, d) => {
-            if (!e.active) sim.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
-          })
+      .on('click', (_, d) => setSelectedNode(p => p?.id === d.id ? null : d))
+      .call(d3.drag()
+        .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+        .on('drag',  (e, d) => { d.fx = e.x; d.fy = e.y; })
+        .on('end',   (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
       );
 
-    node
-      .append('circle')
-      .attr('r', 16)
-      .attr('fill', nodeColor)
-      .attr('fill-opacity', 0.15)
-      .attr('stroke', nodeColor)
-      .attr('stroke-width', 1.5);
+    node.append('circle').attr('r', 20)
+      .attr('fill', d => d.is_failure ? 'rgba(251,113,133,0.12)' : 'rgba(45,212,191,0.10)')
+      .attr('stroke', d => d.is_failure ? '#FB7185' : 'rgba(45,212,191,0.55)')
+      .attr('stroke-width', 2)
+      .style('filter', d => d.is_failure
+        ? 'drop-shadow(0 0 6px rgba(251,113,133,0.4))'
+        : 'drop-shadow(0 0 6px rgba(45,212,191,0.3))');
 
-    node
-      .append('text')
-      .text((d) => d.agent_id?.replace('container_', 'C').replace('constraint_parser', 'Parser') || '?')
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', 9)
-      .attr('font-weight', 500)
-      .attr('fill', '#1e293b');
+    node.append('text')
+      .text(d => (d.agent_id || '?').replace('container_', 'C-').replace('constraint_parser', 'PAR').slice(0, 5))
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('font-size', 10).attr('font-weight', 600).attr('font-family', 'Outfit, sans-serif')
+      .attr('fill', d => d.is_failure ? '#FB7185' : '#2DD4BF');
 
     sim.on('tick', () => {
       link
-        .attr('x1', (d) => d.source.x)
-        .attr('y1', (d) => d.source.y)
-        .attr('x2', (d) => d.target.x)
-        .attr('y2', (d) => d.target.y);
-
-      edgeLabel
-        .attr('x', (d) => (d.source.x + d.target.x) / 2)
-        .attr('y', (d) => (d.source.y + d.target.y) / 2 - 6);
-
-      node.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+      node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
     return () => sim.stop();
@@ -132,19 +86,31 @@ export default function CausalGraph({ apiUrl = 'http://localhost:8000/causal-gra
 
   return (
     <div>
-      <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: '#334155' }}>Causal Chain</h3>
-      <div ref={ref} style={{ background: '#f8fafc', borderRadius: 8, border: '0.5px solid #e2e8f0', overflow: 'hidden' }} />
+      <div className="info-label">Causal Graph</div>
+      <div ref={ref} style={{
+        marginTop: 8,
+        border: '1px solid rgba(255,255,255,0.08)',
+        borderRadius: 'var(--r-sm)',
+        background: 'rgba(2,6,23,0.50)',
+        backdropFilter: 'blur(12px)',
+        overflow: 'hidden', minHeight: 160
+      }} />
       {selectedNode && (
-        <div style={{ marginTop: 8, padding: 12, background: '#f1f5f9', borderRadius: 6, fontSize: 12, border: '0.5px solid #e2e8f0' }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Node Inspector</div>
-          <div><strong>Agent:</strong> {selectedNode.agent_id}</div>
-          <div><strong>Round:</strong> {selectedNode.round}</div>
+        <div className="node-inspector">
+          <div><div className="info-label">Node</div><span style={{ fontSize: 12, fontFamily: 'var(--mono)', fontWeight: 500 }}>{selectedNode.agent_id}</span></div>
+          <div><div className="info-label">Seq</div><span style={{ fontSize: 12 }}>{selectedNode.round}</span></div>
           <div>
-            <strong>Status:</strong>{' '}
-            <span style={{ color: selectedNode.is_failure ? '#ef4444' : '#16a34a', fontWeight: 500 }}>
-              {selectedNode.is_failure ? 'Failure detected' : 'Normal execution'}
+            <div className="info-label">State</div>
+            <span style={{ fontSize: 12, fontWeight: 600 }} className={selectedNode.is_failure ? 'text-danger' : 'text-mint'}>
+              {selectedNode.is_failure ? 'Failed' : 'Healthy'}
             </span>
           </div>
+          {selectedNode.chain_of_thought && (
+            <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.08)', paddingLeft: 14 }}>
+              <div className="info-label">Trace</div>
+              <span style={{ fontSize: 11, color: 'var(--text-mid)' }}>{String(selectedNode.chain_of_thought).slice(0, 100)}...</span>
+            </div>
+          )}
         </div>
       )}
     </div>
