@@ -65,6 +65,8 @@ export default function AutopsyPanel() {
 
       {report && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Render the causal chain graph */}
+          <CausalGraph />
           {/* Report card */}
           <div
             style={{
