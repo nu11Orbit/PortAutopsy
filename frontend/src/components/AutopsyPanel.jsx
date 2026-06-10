@@ -3,7 +3,7 @@ import CounterfactualDiff from './CounterfactualDiff';
 import CausalGraph from './CausalGraph';
 import mockReport from '../mock/autopsy_report.json';
 
-export default function AutopsyPanel() {
+export default function AutopsyPanel({ onReportLoaded }) {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -14,11 +14,13 @@ export default function AutopsyPanel() {
       const data = await res.json();
       setReport(data);
       setLoading(false);
+      onReportLoaded?.();
     } catch {
       // Fall back to mock for demo
       setTimeout(() => {
         setReport(mockReport);
         setLoading(false);
+        onReportLoaded?.();
       }, 800);
     }
   };
@@ -58,13 +60,18 @@ export default function AutopsyPanel() {
       )}
 
       {loading && (
-        <div style={{ fontSize: 12, color: '#3b82f6', textAlign: 'center', padding: 24 }}>
-          Tracing causal chain...
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+          <div className="skeleton" style={{ height: 120 }} />
+          <div className="skeleton" style={{ height: 48 }} />
+          <div className="skeleton" style={{ height: 48 }} />
+          <div className="skeleton" style={{ height: 16, width: '40%' }} />
         </div>
       )}
 
       {report && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Render the causal chain graph */}
+          <CausalGraph />
           {/* Report card */}
           <div
             style={{

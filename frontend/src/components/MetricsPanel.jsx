@@ -1,27 +1,42 @@
+import { useCountUp } from '../hooks/useCountUp';
+
 const BASE = {
   fifo:  { throughput: 100, violations: 3, dwell: 4.2, debug: 'manual' },
   agent: { throughput: 123, violations: 0, dwell: 2.8, debug: 'manual' },
   fixed: { throughput: 127, violations: 0, dwell: 2.6, debug: '8 sec' },
 };
 
+const rows = [
+  { label: 'Throughput',      key: 'throughput', fmt: (v) => `${v}%` },
+  { label: 'Cold violations', key: 'violations', fmt: (v) => v       },
+  { label: 'Avg dwell time',  key: 'dwell',      fmt: (v) => `${v}h` },
+  { label: 'Debug time',      key: 'debug',      fmt: (v) => v       },
+];
+
+/**
+ * Animated cell — counts up when the Fix column appears.
+ */
+function AnimatedCell({ value, fmt, animate }) {
+  const animated = useCountUp(
+    typeof value === 'number' ? value : 0,
+    600,
+    animate
+  );
+  const display = typeof value === 'number' ? animated : value;
+  return <>{fmt(display)}</>;
+}
+
 export default function MetricsPanel({ showFixed = false }) {
   const cols = showFixed
     ? [
-        ['FIFO (baseline)', BASE.fifo],
-        ['Decentralised', BASE.agent],
-        ['After Autopsy fix', BASE.fixed],
+        ['FIFO (baseline)',    BASE.fifo,  false],
+        ['Decentralised',      BASE.agent, false],
+        ['After Autopsy fix',  BASE.fixed, true ],  // ← animate this column
       ]
     : [
-        ['FIFO (baseline)', BASE.fifo],
-        ['Decentralised agents', BASE.agent],
+        ['FIFO (baseline)',    BASE.fifo,  false],
+        ['Decentralised agents', BASE.agent, false],
       ];
-
-  const rows = [
-    { label: 'Throughput', key: 'throughput', fmt: (v) => `${v}%` },
-    { label: 'Cold violations', key: 'violations', fmt: (v) => v },
-    { label: 'Avg dwell time', key: 'dwell', fmt: (v) => `${v}h` },
-    { label: 'Debug time', key: 'debug', fmt: (v) => v },
-  ];
 
   return (
     <div>
@@ -36,8 +51,13 @@ export default function MetricsPanel({ showFixed = false }) {
                   textAlign: i === 0 ? 'left' : 'right',
                   padding: '4px 8px',
                   fontWeight: 500,
-                  color: '#64748b',
+                  color: i === cols.length && showFixed ? '#16a34a' : '#64748b',
                   borderBottom: '0.5px solid #e2e8f0',
+                  // Slide-in for the Fix column
+                  animation:
+                    i === cols.length && showFixed
+                      ? 'cell-appear 0.35s ease-out both'
+                      : 'none',
                 }}
               >
                 {h}
@@ -49,17 +69,28 @@ export default function MetricsPanel({ showFixed = false }) {
           {rows.map((row) => (
             <tr key={row.key}>
               <td style={{ padding: '6px 8px', color: '#374151' }}>{row.label}</td>
-              {cols.map(([name, data]) => (
+              {cols.map(([name, data, animate]) => (
                 <td
                   key={name}
                   style={{
                     textAlign: 'right',
                     padding: '6px 8px',
+                    fontWeight: animate ? 600 : 400,
                     color:
-                      row.key === 'violations' && data[row.key] > 0 ? '#ef4444' : '#111827',
+                      row.key === 'violations' && data[row.key] > 0
+                        ? '#ef4444'
+                        : animate
+                        ? '#16a34a'
+                        : '#111827',
+                    animation:
+                      animate ? 'cell-appear 0.35s ease-out both' : 'none',
                   }}
                 >
-                  {row.fmt(data[row.key])}
+                  <AnimatedCell
+                    value={data[row.key]}
+                    fmt={row.fmt}
+                    animate={animate && showFixed}
+                  />
                 </td>
               ))}
             </tr>

@@ -55,6 +55,14 @@ export default function PortMap() {
   const svgW = MARGIN_LEFT + CRANES_PER_BERTH * CELL_W + 8;
   const svgH = MARGIN_TOP  + BERTHS * CELL_H + 8;
 
+  // Detect cold-chain violation: a BID event where container was cold_chain
+  // but temperature_constraint was dropped (null in the actual constraint field)
+  const hasViolation = activeEvents.some((e) => {
+    if (e.output?.action !== 'BID') return false;
+    const container = e?.inputs?.container;
+    return container?.cargo_type === 'cold_chain' && container?.temperature_constraint === null;
+  });
+
   return (
     <div>
       {/* Header row */}
@@ -63,6 +71,13 @@ export default function PortMap() {
         <span style={{ fontSize: 11, color: connected ? '#16a34a' : '#94a3b8' }}>
           {connected ? '● live' : '○ connecting'}
         </span>
+        {/* Pulsing violation badge */}
+        {hasViolation && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#ef4444', fontWeight: 600 }}>
+            <span className="violation-badge" />
+            Cold-chain violation
+          </span>
+        )}
         {/* Legend */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
           {Object.entries(CARGO_COLORS).map(([type, color]) => (
@@ -113,6 +128,7 @@ export default function PortMap() {
                   stroke={strokeClr}
                   strokeWidth={alloc ? 1.5 : 0.5}
                   rx={5}
+                  className={alloc ? 'crane-cell' : undefined}
                 />
                 {alloc && (
                   <text
