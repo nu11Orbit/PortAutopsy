@@ -50,7 +50,8 @@ export default function PortMap() {
   // ── Build allocation map ───────────────────────────────────────────────────
   // Key: craneIndex (number), Value: { agentId, cargoType }
   // Last-writer-wins so we always see the most recently assigned container per slot.
-  const allocations = {};
+  const allocations   = {};
+  const violationSlots = new Set(); // crane indices with a cold_chain violation
   let maxCraneIndex = -1;
 
   events.forEach(e => {
@@ -59,24 +60,26 @@ export default function PortMap() {
       if (!isNaN(idx)) {
         allocations[idx] = { agentId: e.agent_id, cargoType: getCargoType(e) };
         if (idx > maxCraneIndex) maxCraneIndex = idx;
+
+        // Track which specific slots have cold_chain violations
+        const c = e?.inputs?.container;
+        if (c?.cargo_type === 'cold_chain' && c?.temperature_constraint === null) {
+          violationSlots.add(idx);
+        }
       }
     }
   });
 
+  const hasViolation = violationSlots.size > 0;
+
   // ── Grid dimensions — expand dynamically if simulation uses more slots ─────
   const totalSlots = maxCraneIndex >= 0
-    ? maxCraneIndex + 1                              // at least enough to hold every seen slot
-    : DEFAULT_BERTHS * CRANES_PER_BERTH;             // nothing seen yet → show empty 4×6
+    ? maxCraneIndex + 1
+    : DEFAULT_BERTHS * CRANES_PER_BERTH;
 
   // Round up to a full row so the grid is rectangular
   const cols   = CRANES_PER_BERTH;
   const berths = Math.max(DEFAULT_BERTHS, Math.ceil(totalSlots / cols));
-
-  const hasViolation = events.some(e => {
-    const c = e?.inputs?.container;
-    // temperature_constraint is explicitly null when the bug is injected
-    return c?.cargo_type === 'cold_chain' && c?.temperature_constraint === null;
-  });
 
   const allocCount = Object.keys(allocations).length;
   const gridTotal  = berths * cols;
@@ -88,14 +91,19 @@ export default function PortMap() {
   const svgW = ML + cols   * CW + 16;
   const svgH = MT + berths * CH + 16;
 
+  // ── Connection status label ────────────────────────────────────────────────
+  const connLabel = connected
+    ? { text: '● Live',    color: '#2DD4BF' }
+    : { text: '○ Offline', color: 'var(--rose)' };
+
   return (
     <div>
       {/* Section header */}
       <div className="section-header">
         <span className="section-title">Terminal Grid</span>
         {hasViolation && <span className="tag tag-red">⚠ Breach</span>}
-        <span style={{ fontSize: 11, color: connected ? '#2DD4BF' : 'var(--t3)', marginLeft: 4 }}>
-          {connected ? '● Live' : '○ Idle'}
+        <span style={{ fontSize: 11, color: connLabel.color, marginLeft: 4 }}>
+          {connLabel.text}
         </span>
         {/* Legend */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -128,7 +136,7 @@ export default function PortMap() {
           <div className="kpi-val" style={{
             color: hasViolation ? 'var(--rose)' : 'var(--teal)',
           }}>
-            {hasViolation ? '1' : '0'}
+            {violationSlots.size || '0'}
           </div>
           <div className="kpi-lbl">Cold Breaches</div>
         </div>
@@ -183,50 +191,71 @@ export default function PortMap() {
         {/* Cells — craneIndex = b * cols + c */}
         {Array.from({ length: berths }, (_, b) =>
           Array.from({ length: cols }, (_, c) => {
-            const craneIndex = b * cols + c;
-            const x = ML + c * CW;
-            const y = MT + b * CH;
-            const alloc = allocations[craneIndex];
-            const cfg   = CARGO[alloc?.cargoType ?? 'standard'];
+            const craneIndex  = b * cols + c;
+            const x           = ML + c * CW;
+            const y           = MT + b * CH;
+            const alloc       = allocations[craneIndex];
+            const cfg         = CARGO[alloc?.cargoType ?? 'standard'];
+            const isViolation = violationSlots.has(craneIndex);
+            const cx          = x + CW / 2;
+            const cy          = y + CH / 2;
 
             return (
               <g key={craneIndex}>
-                {/* Cell background */}
+                {/* Pulsing violation ring — rendered behind the cell */}
+                {isViolation && (
+                  <circle
+                    className="violation-ring"
+                    cx={cx} cy={cy}
+                    r={28}
+                    fill="none"
+                    stroke="rgba(251,113,133,0.5)"
+                    strokeWidth={2}
+                  />
+                )}
+
+                {/* Cell background — animated on appear */}
                 <rect
+                  className={alloc ? 'cell-appear' : undefined}
                   x={x + 4} y={y + 4}
                   width={CW - 8} height={CH - 8}
                   rx={10} ry={10}
                   fill={alloc ? cfg.fill : 'rgba(255,255,255,0.025)'}
-                  stroke={alloc ? cfg.border : 'rgba(255,255,255,0.07)'}
-                  strokeWidth={1.5}
+                  stroke={
+                    isViolation ? 'rgba(251,113,133,0.7)'
+                    : alloc     ? cfg.border
+                    :             'rgba(255,255,255,0.07)'
+                  }
+                  strokeWidth={isViolation ? 2 : 1.5}
                 />
+
                 {alloc && (
                   <>
                     {/* Container ID */}
                     <text
-                      x={x + CW / 2} y={y + CH / 2 - 5}
+                      x={cx} y={cy - 5}
                       textAnchor="middle" dominantBaseline="central"
                       fontSize={10} fontWeight={600}
-                      fill={cfg.color}
+                      fill={isViolation ? '#FB7185' : cfg.color}
                       fontFamily="JetBrains Mono, monospace"
                     >
                       {alloc.agentId.replace('container_', '#')}
                     </text>
                     {/* Type label */}
                     <text
-                      x={x + CW / 2} y={y + CH / 2 + 9}
+                      x={cx} y={cy + 9}
                       textAnchor="middle" dominantBaseline="central"
                       fontSize={9} fill="rgba(148,163,184,0.45)"
                       fontFamily="Outfit, sans-serif"
                       letterSpacing="0.06em"
                     >
-                      {cfg.label}
+                      {isViolation ? '⚠ BREACH' : cfg.label}
                     </text>
                     {/* Status dot */}
                     <circle
                       cx={x + CW - 12} cy={y + 12}
                       r={2.5}
-                      fill={cfg.dot}
+                      fill={isViolation ? '#FB7185' : cfg.dot}
                     />
                   </>
                 )}
