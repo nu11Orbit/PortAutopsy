@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEventStream } from '../hooks/useEventStream';
 
 const isFailure = (e) => {
@@ -20,13 +20,22 @@ const CARGO_COLOR = {
 export default function AgentTimeline({ apiUrl = 'http://localhost:8000/traces' }) {
   const [restTraces, setRestTraces] = useState([]);
   const [selected, setSelected]     = useState(null);
+  const [showAll,  setShowAll]      = useState(false);
+  const mountedRef                  = useRef(true);
   const { events: wsEvents }        = useEventStream();
 
+  // ── REST hydration — re-polls every 10 s so new simulation runs auto-refresh ──
   useEffect(() => {
-    fetch(apiUrl)
-      .then(r => r.json())
-      .then(d => { if (d?.length) setRestTraces(d); })
-      .catch(() => {});
+    mountedRef.current = true;
+    const load = () => {
+      fetch(apiUrl)
+        .then(r => r.json())
+        .then(d => { if (mountedRef.current && Array.isArray(d) && d.length) setRestTraces(d); })
+        .catch(() => {});
+    };
+    load();                               // immediate first fetch
+    const id = setInterval(load, 10000);  // re-poll every 10s
+    return () => { mountedRef.current = false; clearInterval(id); };
   }, [apiUrl]);
 
   const allTraces = (() => {
@@ -66,7 +75,7 @@ export default function AgentTimeline({ apiUrl = 'http://localhost:8000/traces' 
             </tr>
           </thead>
           <tbody>
-            {allTraces.slice(0, 30).map((e, i) => {
+            {(showAll ? allTraces : allTraces.slice(0, 30)).map((e, i) => {
               const fail  = isFailure(e);
               const cargo = getCargoType(e);
               const color = CARGO_COLOR[cargo] ?? '#2DD4BF';
@@ -126,6 +135,24 @@ export default function AgentTimeline({ apiUrl = 'http://localhost:8000/traces' 
             })}
           </tbody>
         </table>
+
+        {/* Show more / less button */}
+        {allTraces.length > 30 && (
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <button
+              onClick={() => setShowAll(v => !v)}
+              style={{
+                fontSize: 10, color: 'var(--tw3)',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 4, padding: '4px 12px',
+                cursor: 'pointer', letterSpacing: '0.05em',
+              }}
+            >
+              {showAll ? '▲ Show less' : `▼ Show all ${allTraces.length} events`}
+            </button>
+          </div>
+        )}
 
         {/* Expanded inspector row */}
         {selected && (
