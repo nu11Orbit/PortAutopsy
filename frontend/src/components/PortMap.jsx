@@ -1,10 +1,4 @@
 import { useEventStream } from '../hooks/useEventStream';
-import mockTraces from '../mock/traces.json';
-
-const BERTHS = 4;
-const CRANES = 6;
-const CW = 96, CH = 58;
-const ML = 46, MT = 38;
 
 const CARGO = {
   cold_chain: {
@@ -33,32 +27,66 @@ const CARGO = {
   },
 };
 
+// Simulation constants — must match port_sim / negotiation_loop config
+const CRANES_PER_BERTH = 6;  // columns
+const DEFAULT_BERTHS   = 4;  // rows (minimum shown)
+
 function getCargoType(e) {
   return e?.inputs?.container?.cargo_type ?? 'standard';
 }
 
+/**
+ * Parse "crane_N" → N (0-indexed).
+ * Returns NaN if the string doesn't match.
+ */
+function parseCraneIndex(slot) {
+  const m = /^crane_(\d+)$/.exec(slot);
+  return m ? parseInt(m[1], 10) : NaN;
+}
+
 export default function PortMap() {
   const { events, connected } = useEventStream();
-  const activeEvents = !connected && events.length === 0 ? mockTraces : events;
 
+  // ── Build allocation map ───────────────────────────────────────────────────
+  // Key: craneIndex (number), Value: { agentId, cargoType }
+  // Last-writer-wins so we always see the most recently assigned container per slot.
   const allocations = {};
-  activeEvents.forEach(e => {
+  let maxCraneIndex = -1;
+
+  events.forEach(e => {
     if (e.output?.action === 'BID' && e.output?.slot) {
-      allocations[e.output.slot] = { agentId: e.agent_id, cargoType: getCargoType(e) };
+      const idx = parseCraneIndex(e.output.slot);
+      if (!isNaN(idx)) {
+        allocations[idx] = { agentId: e.agent_id, cargoType: getCargoType(e) };
+        if (idx > maxCraneIndex) maxCraneIndex = idx;
+      }
     }
   });
 
-  const hasViolation = activeEvents.some(e => {
+  // ── Grid dimensions — expand dynamically if simulation uses more slots ─────
+  const totalSlots = maxCraneIndex >= 0
+    ? maxCraneIndex + 1                              // at least enough to hold every seen slot
+    : DEFAULT_BERTHS * CRANES_PER_BERTH;             // nothing seen yet → show empty 4×6
+
+  // Round up to a full row so the grid is rectangular
+  const cols   = CRANES_PER_BERTH;
+  const berths = Math.max(DEFAULT_BERTHS, Math.ceil(totalSlots / cols));
+
+  const hasViolation = events.some(e => {
     const c = e?.inputs?.container;
+    // temperature_constraint is explicitly null when the bug is injected
     return c?.cargo_type === 'cold_chain' && c?.temperature_constraint === null;
   });
 
-  const totalAlloc = Object.keys(allocations).length;
-  const totalSlots = BERTHS * CRANES;
-  const utilPct    = Math.round(totalAlloc / totalSlots * 100);
+  const allocCount = Object.keys(allocations).length;
+  const gridTotal  = berths * cols;
+  const utilPct    = gridTotal > 0 ? Math.round(allocCount / gridTotal * 100) : 0;
 
-  const svgW = ML + CRANES * CW + 16;
-  const svgH = MT + BERTHS * CH + 16;
+  // ── SVG geometry ──────────────────────────────────────────────────────────
+  const CW = 96, CH = 58;
+  const ML = 46, MT = 38;
+  const svgW = ML + cols   * CW + 16;
+  const svgH = MT + berths * CH + 16;
 
   return (
     <div>
@@ -67,7 +95,7 @@ export default function PortMap() {
         <span className="section-title">Terminal Grid</span>
         {hasViolation && <span className="tag tag-red">⚠ Breach</span>}
         <span style={{ fontSize: 11, color: connected ? '#2DD4BF' : 'var(--t3)', marginLeft: 4 }}>
-          {connected ? '● Live' : '○ Mock'}
+          {connected ? '● Live' : '○ Idle'}
         </span>
         {/* Legend */}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -91,10 +119,10 @@ export default function PortMap() {
       {/* KPI strip */}
       <div className="kpi-row">
         <div className="kpi-card">
-        <div className="kpi-val" style={{ color: '#2DD4BF' }}>
-            {totalAlloc}
+          <div className="kpi-val" style={{ color: '#2DD4BF' }}>
+            {allocCount}
           </div>
-          <div className="kpi-lbl">Slots Allocated</div>
+          <div className="kpi-lbl">Slots Active</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-val" style={{
@@ -110,7 +138,7 @@ export default function PortMap() {
         </div>
       </div>
 
-      {/* SVG grid — fills card width via viewBox */}
+      {/* SVG grid — auto-expands rows if simulation uses >24 slots */}
       <svg
         viewBox={`0 0 ${svgW} ${svgH}`}
         width="100%"
@@ -118,25 +146,25 @@ export default function PortMap() {
         style={{ display: 'block', overflow: 'visible' }}
       >
         {/* Subtle grid lines */}
-        {Array.from({ length: CRANES + 1 }, (_, i) => (
+        {Array.from({ length: cols + 1 }, (_, i) => (
           <line
             key={`vl-${i}`}
             x1={ML + i * CW} y1={MT - 8}
-            x2={ML + i * CW} y2={MT + BERTHS * CH + 4}
+            x2={ML + i * CW} y2={MT + berths * CH + 4}
             stroke="rgba(255,255,255,0.04)" strokeWidth={1}
           />
         ))}
-        {Array.from({ length: BERTHS + 1 }, (_, i) => (
+        {Array.from({ length: berths + 1 }, (_, i) => (
           <line
             key={`hl-${i}`}
             x1={ML - 8} y1={MT + i * CH}
-            x2={ML + CRANES * CW + 4} y2={MT + i * CH}
+            x2={ML + cols * CW + 4} y2={MT + i * CH}
             stroke="rgba(255,255,255,0.04)" strokeWidth={1}
           />
         ))}
 
         {/* Column headers */}
-        {Array.from({ length: CRANES }, (_, c) => (
+        {Array.from({ length: cols }, (_, c) => (
           <text
             key={c}
             x={ML + c * CW + (CW - 8) / 2}
@@ -152,17 +180,17 @@ export default function PortMap() {
           </text>
         ))}
 
-        {/* Cells */}
-        {Array.from({ length: BERTHS }, (_, b) =>
-          Array.from({ length: CRANES }, (_, c) => {
-            const craneId = `crane_${b * CRANES + c}`;
+        {/* Cells — craneIndex = b * cols + c */}
+        {Array.from({ length: berths }, (_, b) =>
+          Array.from({ length: cols }, (_, c) => {
+            const craneIndex = b * cols + c;
             const x = ML + c * CW;
             const y = MT + b * CH;
-            const alloc = allocations[craneId];
+            const alloc = allocations[craneIndex];
             const cfg   = CARGO[alloc?.cargoType ?? 'standard'];
 
             return (
-              <g key={craneId}>
+              <g key={craneIndex}>
                 {/* Cell background */}
                 <rect
                   x={x + 4} y={y + 4}
@@ -172,7 +200,6 @@ export default function PortMap() {
                   stroke={alloc ? cfg.border : 'rgba(255,255,255,0.07)'}
                   strokeWidth={1.5}
                 />
-                {/* Glow border for active cells — removed, border color is enough */}
                 {alloc && (
                   <>
                     {/* Container ID */}
@@ -209,7 +236,7 @@ export default function PortMap() {
         )}
 
         {/* Row labels */}
-        {Array.from({ length: BERTHS }, (_, b) => (
+        {Array.from({ length: berths }, (_, b) => (
           <text
             key={b}
             x={ML - 10}
