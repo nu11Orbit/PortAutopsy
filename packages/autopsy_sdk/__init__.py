@@ -16,6 +16,7 @@ Quick start:
 
 from .tracer import trace_agent
 from .sdk import get_traces, get_trace, get_trace_count, clear_traces, add_downstream_effect
+from .event_stream import register_on_event
 from .models import (
     TraceEvent,
     AutopsyReport,
@@ -29,6 +30,7 @@ __all__ = [
     "get_trace",
     "get_trace_count",
     "clear_traces",
+    "register_on_event",
     "TraceEvent",
     "AutopsyReport",
     "DownstreamEffect",
