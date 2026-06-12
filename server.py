@@ -48,16 +48,37 @@ async def ws_events(ws: WebSocket):
         _ws_clients.remove(ws)
 
 
-async def broadcast_event(event: dict):
-    """Push an event to all connected dashboard clients."""
+async def _async_broadcast(event_dict: dict):
+    """Push an event to all connected dashboard clients (async)."""
     dead = []
     for ws in _ws_clients:
         try:
-            await ws.send_text(json.dumps(event, default=str))
+            await ws.send_text(json.dumps(event_dict, default=str))
         except Exception:
             dead.append(ws)
     for ws in dead:
         _ws_clients.remove(ws)
+
+
+def _on_trace_event(event):
+    """
+    Callback registered with autopsy_sdk.
+    Called from sync code (the tracer), so we schedule the async broadcast
+    onto the running event loop.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+        event_dict = event.model_dump(mode="json")
+        loop.create_task(_async_broadcast(event_dict))
+    except RuntimeError:
+        pass  # No event loop running (e.g. CLI scripts) — skip broadcast
+
+
+@app.on_event("startup")
+async def _register_ws_bridge():
+    """Wire the SDK event stream → WebSocket broadcast on server start."""
+    from packages.autopsy_sdk import register_on_event
+    register_on_event(_on_trace_event)
 
 
 # ── REST Endpoints ───────────────────────────────────────────
